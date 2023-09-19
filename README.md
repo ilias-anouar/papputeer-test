@@ -135,3 +135,39 @@ If you're still encountering connection issues after configuring PostgreSQL to a
 10. **Firewall on Your Local Machine**: Check if there's a firewall running on your local machine that might be blocking outgoing connections to port 5432.
 
 By carefully reviewing and testing each of these steps, you should be able to identify and resolve the connection issue between your Node.js application and the PostgreSQL database on your CentOS 7 virtual machine.
+
+
+## the code error generation :
+-Error connecting to PostgreSQL: Error: connect ECONNREFUSED 127.0.0.1:5432
+PS C:\Users\IT Team\Desktop\Report\Code source\server> node db.js
+Error connecting to PostgreSQL: Error: connect ECONNREFUSED 127.0.0.1:5432
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1495:16) {
+  errno: -4078,
+  code: 'ECONNREFUSED',
+  syscall: 'connect',
+  address: '127.0.0.1',
+  port: 5432
+}
+
+## the function : 
+const { Pool } = require('pg');
+
+// Replace with your PostgreSQL database connection details
+const pool = new Pool({
+    user: 'root',
+    host: '127.0.0.1', // Use the IP of your CentOS 7 virtual machine
+    database: 'report',
+    password: 'ilias080701',
+    port: 5432,
+});
+
+pool.query('SELECT NOW()', (err, res) => {
+    if (err) {
+        console.error('Error connecting to PostgreSQL:', err);
+    } else {
+        console.log('Connected to PostgreSQL:', res.rows[0].now);
+    }
+    pool.end();
+});
+
+
