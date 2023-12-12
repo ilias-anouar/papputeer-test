@@ -1,137 +1,537 @@
-# setuptourist
+async function repeat(array, bccToProcess, start, check, action, data, methods, resultManager, processStateManager) {
+  const processFunction = check ? process : processV;
 
-dependencies:
-- node v13
-- npm
-- mysql
+  if (action === 'compose') {
+    if (check) {
+      for (let i = 0; i < array[start].length; i++) {
+        await resultManager.startNow({ id_seeds: array[start][i].id_seeds, id_process: data.id_process });
+        await resultManager.updateState([{ id_seeds: array[start][i].id_seeds, id_process: data.id_process }], "running");
+        await processFunction([array[start][i]], [bccToProcess[start][i]], i, { onlyStarted: false }, methods);
+      }
+    } else {
+      await time(3000);
+      await processFunction(array[start], bccToProcess[start], start, { onlyStarted: true }, methods);
+      if (array.length > start + 1) {
+        await repeat(array, bccToProcess, start + 1, check, action, data, methods, resultManager, processStateManager);
+      }
+    }
+  } else {
+    if (check) {
+      for (let i = 0; i < array[start].length; i++) {
+        await resultManager.startNow({ id_seeds: array[start][i].id_seeds, id_process: data.id_process });
+        await resultManager.updateState([{ id_seeds: array[start][i].id_seeds, id_process: data.id_process }], "running");
+        await processFunction([array[start][i]], start, { onlyStarted: false });
+      }
+    } else {
+      await time(3000);
+      await processFunction(array[start], start, { onlyStarted: true });
+      if (array.length > start + 1) {
+        await repeat(array, bccToProcess, start + 1, check, action, data, methods, resultManager, processStateManager);
+      }
+    }
+  }
+}
 
-To establish a connection between your Node.js application running on your local machine and a PostgreSQL database on a CentOS 7 virtual machine, you need to follow these steps:
+// Usage
+let check = { startingIndexed: toProcess.length >= 2 ? false : true };
+await time(3000);
+await repeat(toProcess, bccToProcess, 0, check.startingIndexed, actions[0], data, methods, resultManager, processStateManager);
+await time(5000);
 
-1. Configure PostgreSQL on CentOS 7:
-   - Make sure PostgreSQL is installed and running on your CentOS 7 virtual machine.
-   - Edit the PostgreSQL configuration to allow connections from remote IP addresses:
-     - Locate the PostgreSQL configuration file, usually found at `/etc/postgresql/{version}/main/postgresql.conf`. Replace `{version}` with your PostgreSQL version.
-     - Edit the `listen_addresses` parameter to accept connections from your local IP. You can set it to '*', which allows connections from any IP address. Change the line to look like this:
-       ```
-       listen_addresses = '*'
-       ```
-     - Save the file and restart PostgreSQL to apply the changes:
-       ```
-       sudo systemctl restart postgresql
-       ```
-
-2. Configure PostgreSQL to allow remote connections for your user:
-   - Edit the `pg_hba.conf` file to specify which IPs are allowed to connect to PostgreSQL and which authentication method to use.
-     - Locate the `pg_hba.conf` file, usually found at `/etc/postgresql/{version}/main/pg_hba.conf`.
-     - Add the following line at the end of the file to allow connections from your local IP (127.0.0.1) using the "md5" authentication method:
-       ```
-       host    all    all    127.0.0.1/32    md5
-       ```
-     - Save the file.
-
-3. Create a PostgreSQL user and database:
-   - Log in to your CentOS 7 virtual machine.
-   - Access the PostgreSQL command line using the `psql` command:
-     ```
-     sudo -u postgres psql
-     ```
-   - Create a new database and user with appropriate privileges. Replace `yourdatabase`, `youruser`, and `yourpassword` with your desired database name, username, and password:
-     ```sql
-     CREATE DATABASE yourdatabase;
-     CREATE USER youruser WITH PASSWORD 'yourpassword';
-     ALTER ROLE youruser SET client_encoding TO 'utf8';
-     ALTER ROLE youruser SET default_transaction_isolation TO 'read committed';
-     ALTER ROLE youruser SET timezone TO 'UTC';
-     GRANT ALL PRIVILEGES ON DATABASE yourdatabase TO youruser;
-     ```
-   - Exit the PostgreSQL shell:
-     ```
-     \q
-     ```
-
-4. Install the PostgreSQL driver for Node.js in your local project:
-   - In your Node.js project directory, run the following command to install the `pg` package, which is a PostgreSQL client for Node.js:
-     ```
-     npm install pg
-     ```
-
-5. Create a Node.js application to connect to the PostgreSQL database:
-   - Create a JavaScript file (e.g., `app.js`) in your local project directory and add the following code to establish a connection to the PostgreSQL database:
-     ```javascript
-     const { Pool } = require('pg');
-
-     // Replace with your PostgreSQL database connection details
-     const pool = new Pool({
-       user: 'youruser',
-       host: 'your_centos_vm_ip', // Use the IP of your CentOS 7 virtual machine
-       database: 'yourdatabase',
-       password: 'yourpassword',
-       port: 5432,
-     });
-
-     pool.query('SELECT NOW()', (err, res) => {
-       if (err) {
-         console.error('Error connecting to PostgreSQL:', err);
-       } else {
-         console.log('Connected to PostgreSQL:', res.rows[0].now);
-       }
-       pool.end();
-     });
-     ```
-
-6. Run your Node.js application:
-   - Execute your Node.js application with the following command in your project directory:
-     ```
-     node app.js
-     ```
-
-Your Node.js application should now be able to connect to the PostgreSQL database on your CentOS 7 virtual machine using the IP address of your virtual machine and the configured database credentials. Make sure your CentOS 7 virtual machine's firewall allows incoming connections on port 5432, or adjust your firewall settings as needed.
+let status = { waiting, active, finished: 0, failed: 0, id_process: data.id_process };
+console.log(status);
+processStateManager.addState(status);
 
 
 
-#error
+# processV
 
-If you're still encountering connection issues after configuring PostgreSQL to allow remote connections through Webmin, here are some troubleshooting steps to help you diagnose and resolve the problem:
+const processV = async (toProcess, start, option) => {
+  console.log(seeds);
+  await time(3000);
 
-1. **Check PostgreSQL Status**: Ensure that PostgreSQL is running on your CentOS 7 virtual machine. You can check its status using the following command:
+  while (toProcess.length !== 0 && state !== "STOPPED") {
+    state = await composeManager.getProcessState(data.id_process);
 
-   ```
-   sudo systemctl status postgresql
-   ```
+    if (state === "STOPPED") {
+      break;
+    }
 
-   If it's not running, start it with:
+    for (let i = 0; i < toProcess.length; i++) {
+      let seed = toProcess[0];
 
-   ```
-   sudo systemctl start postgresql
-   ```
+      if (option.onlyStarted) {
+        await startSeedProcessing(seed);
+      }
 
-2. **Firewall Configuration**: Make sure that your CentOS 7 firewall allows incoming connections on port 5432 (the default PostgreSQL port). You can use Webmin or the following command to open the port:
+      state = await composeManager.getProcessState(data.id_process);
 
-   ```
-   sudo firewall-cmd --zone=public --add-port=5432/tcp --permanent
-   sudo firewall-cmd --reload
-   ```
+      if (state === "STOPPED") {
+        break;
+      }
 
-3. **Check PostgreSQL Configuration in Webmin**: Revisit the PostgreSQL configuration in Webmin to ensure that you made the necessary changes to allow remote connections. Double-check the "Listen Addresses" and "Access Control" settings.
+      await processSeedActions(seed, option);
+    }
 
-4. **Verify Connection Parameters in Node.js**: In your Node.js application code, verify that you're using the correct PostgreSQL host (the IP address of your CentOS 7 virtual machine), database name, username, and password. Also, ensure that you're using port 5432, which is the default PostgreSQL port.
+    updateProcessState();
+  }
 
-5. **Test the Connection**: Try to connect to your PostgreSQL database from the CentOS 7 virtual machine itself using the `psql` command to confirm that PostgreSQL is accessible:
+  handleProcessCompletion();
 
-   ```
-   psql -h your_centos_vm_ip -U youruser -d yourdatabase
-   ```
+  async function startSeedProcessing(seed) {
+    await resultManager.startNow({ id_seeds: seed.id_seeds, id_process: data.id_process });
+    await resultManager.updateState([{ id_seeds: seed.id_seeds, id_process: data.id_process }], "running");
+  }
 
-   Replace `your_centos_vm_ip`, `youruser`, and `yourdatabase` with the appropriate values.
+  async function processSeedActions(seed, option) {
+    let { actions, subject, pages, c, options, mode } = extractActions(seed);
 
-6. **Check for PostgreSQL Errors**: Review the PostgreSQL logs on your CentOS 7 virtual machine for any error messages that might provide clues about the connection issue. You can typically find PostgreSQL logs in the `/var/log/postgresql/` directory.
+    console.log(`Actions: ${actions}`);
 
-7. **Node.js Application Logging**: Add some logging statements to your Node.js application to capture any error messages or debug information related to the database connection.
+    let r = '';
 
-8. **Network Connectivity**: Ensure that there are no network issues between your local machine and the CentOS 7 virtual machine. You can test network connectivity using tools like `ping` or `telnet` to verify that you can reach the virtual machine's IP address on port 5432.
+    for (let i = 0; i < actions.length; i++) {
+      console.log(`${actions[i]} action start`);
+      r += await composeManager.processing({
+        data: toProcess[0],
+        action: actions[i],
+        subject,
+        pages,
+        count: c,
+        options,
+        entity: data.entity,
+        mode,
+      });
 
-9. **Security Groups or Network ACLs (If Using a Cloud VM)**: If you are running your CentOS 7 virtual machine on a cloud provider (e.g., AWS, Azure), check the security groups or network ACLs to ensure that they allow incoming traffic on port 5432 from your local IP address.
+      if (i < actions.length - 1) {
+        r += ', ';
+      }
+    }
 
-10. **Firewall on Your Local Machine**: Check if there's a firewall running on your local machine that might be blocking outgoing connections to port 5432.
+    r = removeTrailingComma(r);
 
-By carefully reviewing and testing each of these steps, you should be able to identify and resolve the connection issue between your Node.js application and the PostgreSQL database on your CentOS 7 virtual machine.
+    console.log(r);
+    await resultManager.saveFeedback({ feedback: r, id_seeds: toProcess[0].id_seeds, id_process: data.id_process });
+
+    if (r.indexOf('invalid') === -1) {
+      await handleSuccess(seed);
+    } else {
+      await handleFailure(seed);
+    }
+  }
+
+  function extractActions(seed) {
+    let actions, subject, pages, c, options, mode;
+
+    if (
+      seed.action.indexOf('click') === -1 &&
+      seed.action.indexOf('count') === -1 &&
+      seed.action.indexOf('pages') === -1 &&
+      seed.action.indexOf('subject') === -1 &&
+      seed.action.indexOf('option') === -1
+    ) {
+      actions = [seed.action];
+    } else {
+      actions = seed.action.split(',');
+
+      for (let i = 0; i < actions.length; i++) {
+        switch (true) {
+          case actions[i].indexOf('option') !== -1:
+            mode = actions.pop().split(':')[1];
+            break;
+          case actions[i].indexOf('markAsStarted') !== -1:
+            actions.pop();
+            options.markAsStarted = true;
+            break;
+          case actions[i].indexOf('click') !== -1:
+            actions.pop();
+            options.click = true;
+            break;
+          case actions[i].indexOf('markAsImportant') !== -1:
+            actions.pop();
+            options.markAsImportant = true;
+            break;
+          case actions[i].indexOf('count') !== -1:
+            c = actions.pop().split(':')[1];
+            break;
+          case actions[i].indexOf('pages') !== -1:
+            pages = parseInt(actions.pop().split(':')[1]);
+            break;
+          case actions[i].indexOf('subject') !== -1:
+            subject = actions.pop().split(':')[1];
+            break;
+        }
+      }
+    }
+
+    return { actions, subject, pages, c, options, mode };
+  }
+
+  function removeTrailingComma(str) {
+    const array = str.split(', ');
+    array.pop();
+    return array.join(', ');
+  }
+
+  async function handleSuccess(seed) {
+    success++;
+
+    const end_in = new Date();
+    const result = {
+      id_seeds: seed.id_seeds,
+      end_in,
+      id_process: data.id_process,
+    };
+
+    await Promise.all([
+      resultManager.updateState([{ id_seeds: seed.id_seeds, id_process: data.id_process }], "finished"),
+      resultManager.endNow(result),
+    ]);
+
+    toProcess.shift();
+
+    console.log(seeds.length);
+    if (toProcess.length < active && state !== "STOPPED" && seeds.length !== 0) {
+      console.log('The indexed seed: ' + seeds[0].id_seeds);
+      toProcess.push(seeds[0]);
+      seeds.splice(seeds.indexOf(seeds[0]), 1);
+      count++;
+
+      updateProcessState();
+    }
+  }
+
+  async function handleFailure(seed) {
+    failed++;
+
+    const end_in = new Date();
+    const result = {
+      id_seeds: seed.id_seeds,
+      end_in,
+      id_process: data.id_process,
+    };
+
+    await Promise.all([
+      resultManager.updateState([{ id_seeds: seed.id_seeds, id_process: data.id_process }], "failed"),
+      resultManager.endNow(result),
+    ]);
+
+    toProcess.shift();
+    state = await composeManager.getProcessState(data.id_process);
+
+    if (state === "STOPPED") {
+      return;
+    }
+
+    if (toProcess.length < active && count < length && state !== "STOPPED" && seeds.length !== 0) {
+      console.log('The indexed seed: ' + seeds[0 + start].id_seeds);
+      toProcess.push(seeds[0 + start]);
+      seeds.splice(seeds.indexOf(seeds[0 + start]), 1);
+      count++;
+
+      updateProcessState();
+    }
+  }
+
+  function updateProcessState() {
+    const w = seeds.length + 3;
+    const status = { waiting: Math.max(0, w), active: toProcess.length, finished: success, failed, id_process: data.id_process };
+    processStateManager.updateState(status);
+  }
+
+  function handleProcessCompletion() {
+    let w = seeds.length + 3;
+
+    if (w <= 0) {
+      let status = { waiting: 0, active: toProcess.length, finished: success, failed, id_process: data.id_process };
+      processStateManager.updateState(status);
+    } else {
+      let status = { waiting: w, active: toProcess.length, finished: success, failed, id_process: data.id_process };
+      processStateManager.updateState(status);
+    }
+
+    state = await composeManager.getProcessState(data.id_process);
+
+    if (state === "STOPPED") {
+      return;
+    }
+
+    if (toProcess.length === 0) {
+      let status = { waiting: 0, active: 0, finished: success, failed, id_process: data.id_process };
+      await processStateManager.updateState(status);
+      composeManager.finishedProcess({ id_process: data.id_process, status: `FINISHED` });
+      console.log(`Process with id: ${data.id_process} finished at ${new Date().toLocaleString()}`);
+      sendToAll(clients, 'reload');
+    }
+  }
+};
+
+
+# process const process = async (toProcess, bccToProcess, start, option, methods) => {
+  console.log(bccToProcess);
+  await time(3000);
+
+  const processSeed = async (seed) => {
+    if (option.onlyStarted) {
+      await resultManager.startNow({ id_seeds: seed.id_seeds, id_process: data.id_process });
+      await resultManager.updateState([{ id_seeds: seed.id_seeds, id_process: data.id_process }], "running");
+    }
+
+    let r = '';
+    for (let j = 0; j < actions.length; j++) {
+      r += await composeManager.processing({
+        data: seed,
+        action: actions[j],
+        subject: subject,
+        to: to,
+        offer: seed.offer,
+        bcc: bccToProcess[0],
+        entity: data.entity,
+        mode: 'Cookies'
+      });
+
+      if (bccToProcess[0] != undefined) {
+        bccCount = bccCount + bccToProcess[0].length;
+        await composeManager.saveCounter({ counter: bccCount, id_process: data.id_process });
+        sendToAll(clients, 'reload');
+      }
+
+      if (j < actions.length) {
+        r += ', ';
+      }
+    }
+
+    let array = r.split(', ');
+    array.pop();
+    r = array.join(', ');
+
+    await resultManager.saveFeedback({ feedback: r, id_seeds: seed.id_seeds, id_process: data.id_process });
+
+    if (r.indexOf('invalid') == -1 && r.indexOf('detected') == -1 && r.indexOf('noData') == -1) {
+      success++;
+      let end_in = new Date();
+      let result;
+      await Promise.all([
+        await resultManager.updateState([{ id_seeds: seed.id_seeds, id_process: data.id_process }], "finished"),
+        result = { id_seeds: seed.id_seeds, end_in: end_in, id_process: data.id_process },
+        await resultManager.endNow(result)
+      ]);
+
+      bccToProcess.shift();
+      toProcess.shift();
+
+      if (toProcess.length < active && state != "STOPPED" && seeds.length != 0 && bccResult.length != 0 && bccResult[0 + start] != undefined) {
+        console.log('the indexed seed : ' + seeds[0].id_seeds);
+        toProcess.push(seeds[0]);
+        bccToProcess.push(bccResult[0 + start]);
+        seeds.splice(seeds.indexOf(seeds[0]), 1);
+        count++;
+
+        let waiting = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "waiting" });
+        let running = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "running" });
+        let w = waiting.length;
+        let status = { waiting: w, active: running.length, finished: success, failed: failed, id_process: data.id_process };
+        processStateManager.updateState(status);
+      }
+
+      if (seeds.length == 0 && bccToProcess.length == 0 && bccResult[0 + start] != undefined && bccResult.length != 0 && Origins.length != 0) {
+        seeds = [...Origins];
+        await time(2000);
+        await resultManager.updateState([{ id_seeds: seeds[0].id_seeds, id_process: data.id_process }], "running");
+        toProcess.push(seeds[0]);
+        seeds.splice(seeds.indexOf(seeds[0]), 1);
+        bccToProcess.push(bccResult[0 + start]);
+        bccResult.splice(bccResult.indexOf(bccResult[0 + start]), 1);
+      }
+    } else {
+      failed++;
+      let end_in = new Date();
+      let result;
+      await Promise.all([
+        await resultManager.updateState([{ id_seeds: seed.id_seeds, id_process: data.id_process }], "failed"),
+        result = { id_seeds: seed.id_seeds, end_in: end_in, id_process: data.id_process },
+        await resultManager.endNow(result)
+      ]);
+
+      Origins.splice(Origins.indexOf(seed), 1);
+      bccToProcess.shift();
+      toProcess.shift();
+
+      state = await composeManager.getProcessState(data.id_process);
+      if (state == "STOPPED") {
+        break;
+      }
+
+      if (toProcess.length < active && state != "STOPPED" && seeds.length != 0 && bccResult.length != 0 && bccResult[0 + start] != undefined) {
+        console.log('the indexed seed : ' + seeds[0].id_seeds);
+        toProcess.push(seeds[0]);
+        await resultManager.updateState([{ id_seeds: seeds[0].id_seeds, id_process: data.id_process }], "running");
+        seeds.splice(seeds.indexOf(seeds[0]), 1);
+
+        if (bccResult[0 + start] != undefined) {
+          bccToProcess.push(bccResult[0 + start]);
+          bccResult.splice(bccResult.indexOf(bccResult[0 + start]), 1);
+        }
+
+        count++;
+
+        let waiting = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "waiting" });
+        let running = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "running" });
+        let w = waiting.length;
+        let status = { waiting: w, active: running.length, finished: success, failed: failed, id_process: data.id_process };
+        processStateManager.updateState(status);
+      }
+
+      if (seeds.length == 0 && bccToProcess.length == 0 && bccResult[0 + start] != undefined && bccResult.length != 0 && Origins.length != 0) {
+        seeds = [...Origins];
+        await time(2000);
+        await resultManager.updateState([{ id_seeds: seeds[0].id_seeds, id_process: data.id_process }], "running");
+        toProcess.push(seeds[0]);
+        seeds.splice(seeds.indexOf(seeds[0]), 1);
+        bccToProcess.push(bccResult[0 + start]);
+        bccResult.splice(bccResult.indexOf(bccResult[0 + start]), 1);
+      }
+    }
+  };
+
+  switch (methods.fixedLimit) {
+    case true:
+      console.log('true');
+      while (toProcess.length != 0 && state != "STOPPED") {
+        state = await composeManager.getProcessState(data.id_process);
+        if (state == "STOPPED") {
+          break;
+        }
+
+        for (let i = 0; i < toProcess.length; i++) {
+          await processSeed(toProcess[0]);
+        }
+
+        let waiting = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "waiting" });
+        let w = waiting.length;
+
+        if (w <= 0) {
+          let running = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "running" });
+          let status = { waiting: 0, active: running.length, finished: success, failed: failed, id_process: data.id_process };
+          processStateManager.updateState(status);
+        } else {
+          let running = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "running" });
+          let status = { waiting: w, active: running.length, finished: success, failed: failed, id_process: data.id_process };
+          processStateManager.updateState(status);
+        }
+
+        state = await composeManager.getProcessState(data.id_process);
+
+        if (state == "STOPPED") {
+          break;
+        }
+
+        if (toProcess.length == 0) {
+          let status = { waiting: 0, active: 0, finished: success, failed: failed, id_process: data.id_process };
+          await processStateManager.updateState(status);
+          composeManager.finishedProcess({ id_process: data.id_process, status: `FINISHED` });
+          console.log(`process with id : ${data.id_process} Finished At ${new Date().toLocaleString()}`);
+          sendToAll(clients, 'reload');
+        }
+      }
+      break;
+    case 'none':
+      console.log('none');
+      while (toProcess.length != 0 && state != "STOPPED") {
+        state = await composeManager.getProcessState(data.id_process);
+        if (state == "STOPPED") {
+          break;
+        }
+
+        for (let i = 0; i < toProcess.length; i++) {
+          await processSeed(toProcess[0]);
+        }
+
+        let waiting = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "waiting" });
+        let w = waiting.length;
+
+        if (w <= 0) {
+          let running = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "running" });
+          let status = { waiting: 0, active: running.length, finished: success, failed: failed, id_process: data.id_process };
+          processStateManager.updateState(status);
+        } else {
+          let running = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "running" });
+          let status = { waiting: w, active: running.length, finished: success, failed: failed, id_process: data.id_process };
+          processStateManager.updateState(status);
+        }
+
+        state = await composeManager.getProcessState(data.id_process);
+
+        if (state == "STOPPED") {
+          break;
+        }
+
+        if (toProcess.length == 0) {
+          let status = { waiting: 0, active: 0, finished: success, failed: failed, id_process: data.id_process };
+          await processStateManager.updateState(status);
+          composeManager.finishedProcess({ id_process: data.id_process, status: `FINISHED` });
+          console.log(`process with id : ${data.id_process} Finished At ${new Date().toLocaleString()}`);
+          sendToAll(clients, 'reload');
+        }
+      }
+      break;
+    default:
+      console.log('default');
+      while (bccToProcess.length != 0 && state != "STOPPED") {
+        state = await composeManager.getProcessState(data.id_process);
+        if (state == "STOPPED") {
+          break;
+        }
+
+        for (let i = 0; i < toProcess.length; i++) {
+          if (bccToProcess.length == 0) {
+            break;
+          }
+
+          if (bccToProcess[0] == undefined) {
+            bccToProcess.shift();
+            break;
+          }
+
+          await processSeed(toProcess[0]);
+        }
+
+        let waiting = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "waiting" });
+        let w = waiting.length;
+
+        if (w <= 0) {
+          let running = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "running" });
+          let status = { waiting: 0, active: running.length, finished: success, failed: failed, id_process: data.id_process };
+          processStateManager.updateState(status);
+        } else {
+          let running = await composeManager.getAllProcessSeedsByState({ id_process: data.id_process, status: "running" });
+          let status = { waiting: w, active: running.length, finished: success, failed: failed, id_process: data.id_process };
+          processStateManager.updateState(status);
+        }
+
+        state = await composeManager.getProcessState(data.id_process);
+
+        if (state == "STOPPED") {
+          break;
+        }
+
+        if (bccToProcess.length == 0 && toProcess.length == 0 && bccResult.length == 0) {
+          let status = { waiting: 0, active: 0, finished: success, failed: failed, id_process: data.id_process };
+          await processStateManager.updateState(status);
+          composeManager.finishedProcess({ id_process: data.id_process, status: `FINISHED` });
+          console.log(`process with id : ${data.id_process} Finished At ${new Date().toLocaleString()}`);
+          sendToAll(clients, 'reload');
+        }
+
+        if (Origins.length == 0) {
+          let status = { waiting: 0, active: 0, finished: success, failed: failed, id_process: data.id_process };
+          await processStateManager.updateState(status);
+          composeManager.finishedProcess({ id_process: data.id_process, status: `FINISHED` });
+          console.log(`process with id : ${data.id_process} Finished At ${new Date().toLocaleString()}`);
+          sendToAll(clients, 'reload');
+        }
+      }
+      break;
+  }
+};
+
